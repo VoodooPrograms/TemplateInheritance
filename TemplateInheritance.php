@@ -1,9 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 class TemplateInheritance
 {
     private const string WARNING_STARTBLOCK_ENDBLOCK_MISMATCH = "startblock('%s') does not match endblock('%s')";
     private const string WARNING_ORPHAN_ENDBLOCK = "orphan endblock('%s')";
+    private const string WARNING_MISSING_ENDBLOCK = "missing endblock() for startblock ('%s')";
 
     private ?Block $base = null;
     private array $stack;
@@ -44,7 +47,7 @@ class TemplateInheritance
         if ($this->base !== null) {
             while ($block = array_pop($this->stack)) {
                 $this->warning(
-                    "missing endblock() for startblock('{$block->name}')",
+                    sprintf(self::WARNING_MISSING_ENDBLOCK, $block->name),
                     $this->callingTrace(),
                     $block->trace
                 );
@@ -62,7 +65,7 @@ class TemplateInheritance
         $this->init($this->callingTrace());
     }
 
-    public function init(array $trace): void
+    private function init(array $trace): void
     {
         if ($this->base && !$this->inBaseOrChild($trace)) {
             $this->flushblocks(); // will set $this->base to null
@@ -78,7 +81,7 @@ class TemplateInheritance
         }
     }
 
-    public function newBlock(string $name, array $trace): Block
+    private function newBlock(string $name, array $trace): Block
     {
         while ($block = end($this->stack)) {
             if ($this->isSameFile($block->trace, $trace)) {
@@ -87,7 +90,7 @@ class TemplateInheritance
                 array_pop($this->stack);
                 $this->insertBlock($block);
                 $this->warning(
-                    "missing endblock() for startblock('{$block->name}')",
+                    sprintf(self::WARNING_MISSING_ENDBLOCK, $block->name),
                     $this->callingTrace(),
                     $block->trace
                 );
@@ -100,7 +103,7 @@ class TemplateInheritance
         return new Block($name, $trace, ob_get_length(), null, []);
     }
 
-    public function insertBlock(Block $block): void
+    private function insertBlock(Block $block): void
     {
         $block->end = $this->end = ob_get_length();
         $name = $block->name;
@@ -132,13 +135,13 @@ class TemplateInheritance
         }
     }
 
-    public function bufferCallback(string $buffer): string
+    private function bufferCallback(string $buffer): string
     {
         if ($this->base) {
             while ($block = array_pop($this->stack)) {
                 $this->insertBlock($block);
                 $this->warning(
-                    "missing endblock() for startblock('{$block->name}')",
+                    sprintf(self::WARNING_MISSING_ENDBLOCK, $block->name),
                     $this->callingTrace(),
                     $block->trace
                 );
@@ -164,7 +167,7 @@ class TemplateInheritance
         }
     }
 
-    public function compile(Block $block, string $buffer): array
+    private function compile(Block $block, string $buffer): array
     {
         $parts = array();
         $previous = $block->start;
@@ -183,7 +186,7 @@ class TemplateInheritance
         return $parts;
     }
 
-    public function warning(string $message, array $trace, ?array $warning_trace = null): void
+    private function warning(string $message, array $trace, ?array $warning_trace = null): void
     {
         if (error_reporting() & E_USER_WARNING) {
             if (defined('STDIN')) {
@@ -205,7 +208,7 @@ class TemplateInheritance
         }
     }
 
-    public function callingTrace(): array
+    private function callingTrace(): array
     {
         $trace = debug_backtrace();
         foreach ($trace as $i => $location) {
@@ -213,14 +216,16 @@ class TemplateInheritance
                 return array_slice($trace, $i);
             }
         }
+
+        return [];
     }
 
-    public function inBase(array $trace): bool
+    private function inBase(array $trace): bool
     {
         return $this->isSameFile($trace, $this->base->trace);
     }
 
-    public function inBaseOrChild(array $trace): bool
+    private function inBaseOrChild(array $trace): bool
     {
         $base_trace = $this->base->trace;
         return
@@ -229,7 +234,7 @@ class TemplateInheritance
             $trace[0]['file'] === $base_trace[count($base_trace) - count($trace)]['file'];
     }
 
-    public function isSameFile(array $trace1, array $trace2): bool
+    private function isSameFile(array $trace1, array $trace2): bool
     {
         return
             $trace1 && $trace2 &&
@@ -237,7 +242,7 @@ class TemplateInheritance
             array_slice($trace1, 1) === array_slice($trace2, 1);
     }
 
-    public function isSubtrace(array $trace1, array $trace2): bool
+    private function isSubtrace(array $trace1, array $trace2): bool
     {
         // is trace1 a sub trace of trace2
         $len1 = count($trace1);
